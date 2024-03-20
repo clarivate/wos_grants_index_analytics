@@ -1,0 +1,17 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "~=3.0.1"
+requests = "~=2.31.0"
+pandas = "~=2.2.0"
+plotly = "~=5.18.0"
+dash = "~=2.14.2"
+openpyxl = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
