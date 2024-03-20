@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# wos_grants_index_analytics
-A Flask application for analyzing data on Web of Science Grants Index
-=======
 # Web of Science Grants Index Analytics via Web of Science Expanded API
 
 ![Example visualization](/screenshots/grants_by_years.png)
