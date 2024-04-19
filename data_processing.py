@@ -1,16 +1,23 @@
-import pandas as pd
-from api_operations import retrieve_rates_via_api, retrieve_wos_metadata_via_api
-from visualizations import visualize_data
+"""
+Fetch necessary metadata fields from Grants Index records. ALso fetch
+currency rates from the currency converter app or local cache, and
+return them as dictionaries for
+"""
+
 from datetime import date, datetime, timedelta
+import pandas as pd
+from api_operations import retrieve_rates_via_api
 
 
 def retrieve_rates_from_table():
-    """Get the exchange rates from the locally cached .csv file in case the API endpoint doesn't
-    return data.
+    """Get the exchange rates from the locally cached .csv file in case
+    the API endpoint doesn't return data.
 
     :return: dict.
     """
-    rates_df = (pd.read_csv(filepath_or_buffer='currencies.csv', skiprows=2, index_col='Currency'))
+    rates_df = pd.read_csv(filepath_or_buffer='currencies.csv',
+                           skiprows=2,
+                           index_col='Currency')
     return rates_df.to_dict(orient='dict')['Rate VS USD']
 
 
@@ -20,7 +27,7 @@ def get_usd_rates():
     :return: dict.
     """
     tod = date.today()
-    with open('currencies.csv', 'r') as reading:
+    with open('currencies.csv', 'r', encoding='utf-8') as reading:
         updated = datetime.strptime(reading.readline().split(',')[1][:-1], '%m/%d/%Y').date()
     if tod - updated < timedelta(days=1):
         return retrieve_rates_from_table()
@@ -73,36 +80,33 @@ def fetch_grant_country(item):
     :return: str.
     """
     if 'grant_agencies' in item.keys():
-        if isinstance(item['grant_agencies']['grant_agency'], list):
-            return ', '.join(list(set(f['country'] for f in item['grant_agencies']['grant_agency'])))
-        return item['grant_agencies']['grant_agency']['country']
+        funders_json = item['grant_agencies']['grant_agency']
+        if isinstance(funders_json, list):
+            return ', '.join(list(set(f['country'] for f in funders_json)))
+        return funders_json['country']
     return ''
 
 
 def fetch_pi_institution(item):
-    """Retrieve the name(s) of the principal investigator's institution, if any.
+    """Retrieve the name(s) of the principal investigator's
+    institution, if any. Due to the complexity of the JSON nesting,
+    this function will call itself to get the necessary fields.
 
     :param item: dict.
     :return: str.
     """
-    pi_orgs = []
-    if 'principalInvestigatorInstitutions' in item['principalInvestigators']:
-        if isinstance(item['principalInvestigators']['principalInvestigatorInstitutions'], list):
-            for institutions in item['principalInvestigators']['principalInvestigatorInstitutions']:
-                for institution in institutions['principalInvestigatorInstitution']:
-                    if 'pref' in institution:
-                        if institution['pref'] == 'Y' and institution['content'] not in pi_orgs:
-                            pi_orgs.append(institution['content'])
-        else:
-            try:
-                for institution in item['principalInvestigators']['principalInvestigatorInstitutions'][
-                        'principalInvestigatorInstitution']:
-                    if 'pref' in institution:
-                        if institution['pref'] == 'Y':
-                            pi_orgs.append(institution['content'])
-            except TypeError:
-                pass
-    return ', '.join(pi_orgs)
+    if isinstance(item, str):
+        return ''
+    for key in item.keys():
+        if isinstance(item[key], list):
+            names_list = []
+            for element in item[key]:
+                names_list.append(fetch_pi_institution(element))
+            return ', '.join(n for n in set(names_list) if n)
+        if key == 'pref' and item[key] == 'Y':
+            return item['content']
+        return fetch_pi_institution(item[key])
+    return ''
 
 
 def fetch_fin_year(item):
@@ -111,7 +115,7 @@ def fetch_fin_year(item):
     :param item: dict.
     :return: int or str.
     """
-    if 'financial_year' in item:
+    if 'financial_year' in item.keys():
         return item['financial_year']
     return ''
 
@@ -122,7 +126,7 @@ def fetch_related_records(item):
     :param item: dict.
     :return: str, int.
     """
-    if 'related_records' in item:
+    if 'related_records' in item.keys():
         if isinstance(item['related_records']['record'], list):
             records_list = [r['uid'] for r in item['related_records']['record']]
             return ', '.join(records_list), len(records_list)
@@ -174,106 +178,60 @@ def fetch_abstract(item):
     return ''
 
 
-def convert_to_usd(amount, currency, r):
+def convert_to_usd(amount, currency, rates):
     """Converts grant amount into USD.
 
     :param amount: int or float.
     :param currency: str.
-    :param r: dict.
+    :param rates: dict.
     :return: str or float.
     """
-    if amount == '':
-        return ''
-    if currency == 'USD':
-        return amount
-    if currency in r.keys():
-        return amount / r[f'{currency}']
+    if amount != '':
+        if currency == 'USD':
+            return amount
+        if currency in rates.keys():
+            return amount / rates[f'{currency}']
+    return ''
 
 
-def fetch_data(json, rates, grants_list):
+def fetch_data(rec, rates):
     """Take JSON retrieved by the API, append each record to a grants_list list.
 
-    :param json: dict.
+    :param rec: dict.
     :param rates: dict.
-    :param grants_list: list.
-    :return: None.
+    :return: dict.
     """
-    for record in json['Data']['Records']['records']['REC']:
-        ut = record['UID']
-        print(ut)
-        pub_year = record['static_data']['summary']['pub_info']['pubyear']
-        fin_year = fetch_fin_year(record['static_data']['item'])
-        principal_investigator, other_names = fetch_names(record['static_data']['summary']['names'])
-        doctype = record['static_data']['summary']['doctypes']['doctype']
-        doctitle = fetch_document_title(record['static_data']['summary']['titles'])
-        keywords = fetch_keywords(record['static_data']['fullrecord_metadata'])
-        abstract = fetch_abstract(record['static_data']['fullrecord_metadata'])
-        related_wos_records, related_wos_records_count = fetch_related_records(record['static_data']
-                                                                               ['fullrecord_metadata'])
-        grant = record['static_data']['fullrecord_metadata']['fund_ack']['grants']['grant']
-        grant_agency = fetch_grant_agency(grant)
-        grant_country = fetch_grant_country(record['static_data']['item'])
-        grant_source = grant['grant_source']
-        grant_data_item = grant['grant_data']['grantDataItem']
-        grant_pi_institution = fetch_pi_institution(grant_data_item)
-        grant_amount = grant_data_item['totalAwardAmount']
-        grant_currency = grant_data_item['currency']
-        grant_amount_in_usd = convert_to_usd(grant_amount, grant_currency, rates)
+    ut = rec['UID']
+    print(ut)
+    principal_investigator, other_names = fetch_names(rec['static_data']['summary']['names'])
+    doctitle = fetch_document_title(rec['static_data']['summary']['titles'])
+    related_wos_records, related_wos_records_count = fetch_related_records(rec['static_data']
+                                                                           ['fullrecord_metadata'])
+    grant = rec['static_data']['fullrecord_metadata']['fund_ack']['grants']['grant']
+    grant_source = grant['grant_source']
+    grant_data_item = grant['grant_data']['grantDataItem']
+    grant_pi_institution = fetch_pi_institution(grant_data_item['principalInvestigators'])
+    grant_amount = grant_data_item['totalAwardAmount']
+    grant_currency = grant_data_item['currency']
+    grant_amount_in_usd = convert_to_usd(grant_amount, grant_currency, rates)
 
-        grants_list.append({
-            'UT': ut,
-            'Publication Year': pub_year,
-            'Financial Year': fin_year,
-            'Principal Investigator': principal_investigator,
-            'Other Names': other_names,
-            'Document Type': doctype,
-            'Document Title': doctitle,
-            'Keywords': keywords,
-            'Grant Description': abstract,
-            'Related WoS Records': related_wos_records,
-            'Related WoS Records Count': related_wos_records_count,
-            'Funding Agency': grant_agency,
-            'Funding Country': grant_country,
-            'Grant Source': grant_source,
-            'Principal Investigator Institution': grant_pi_institution,
-            'Grant Amount': grant_amount,
-            'Currency': grant_currency,
-            'Grant Amount, USD': grant_amount_in_usd
-        })
-
-
-def visualize_excel(file):
-    """Visualize graphs from previously saved Excel file.
-
-    :param file:
-    :return: tuple of str.
-    """
-    df = pd.read_excel(file)
-    plots = visualize_data(df)
-    return plots
-
-
-def run_button_main_function(apikey, search_query):
-    records_per_page = 100
-    grants_list = []
-    usd_rates = get_usd_rates()
-    initial_json = retrieve_wos_metadata_via_api(apikey, search_query, records_per_page)
-    fetch_data(initial_json, usd_rates, grants_list)
-    total_results = initial_json['QueryResult']['RecordsFound']
-    requests_required = ((total_results - 1) // records_per_page) + 1
-    print(f'Total Web of Science API requests required: {requests_required}.')
-    for i in range(1, requests_required):
-        first_record = int(f'{i}01')
-        subsequent_json = retrieve_wos_metadata_via_api(apikey, search_query, records_per_page, first_record)
-        fetch_data(subsequent_json, usd_rates, grants_list)
-        print(f'Request {i + 1} of {requests_required} complete.')
-
-    df = pd.DataFrame(grants_list)
-    safe_filename = search_query.replace('*', '').replace('"', '')
-    df.to_excel(
-        excel_writer=f'downloads/{safe_filename} - {date.today()}.xlsx',
-        sheet_name='Grants Data',
-        index=False
-    )
-    plots = visualize_data(df)
-    return f'{safe_filename} - {date.today()}.xlsx', plots
+    return {
+        'UT': ut,
+        'Publication Year': rec['static_data']['summary']['pub_info']['pubyear'],
+        'Financial Year': fetch_fin_year(rec['static_data']['item']),
+        'Principal Investigator': principal_investigator,
+        'Other Names': other_names,
+        'Document Type': rec['static_data']['summary']['doctypes']['doctype'],
+        'Document Title': str(doctitle),
+        'Keywords': fetch_keywords(rec['static_data']['fullrecord_metadata']),
+        'Grant Description': fetch_abstract(rec['static_data']['fullrecord_metadata']),
+        'Related WoS Records': related_wos_records,
+        'Related WoS Records Count': related_wos_records_count,
+        'Funding Agency': fetch_grant_agency(grant),
+        'Funding Country': fetch_grant_country(rec['static_data']['item']),
+        'Grant Source': grant_source,
+        'Principal Investigator Institution': grant_pi_institution,
+        'Grant Amount': grant_amount,
+        'Currency': grant_currency,
+        'Grant Amount, USD': grant_amount_in_usd
+    }
