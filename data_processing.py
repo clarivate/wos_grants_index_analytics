@@ -95,17 +95,16 @@ def fetch_pi_institution(item):
     :param item: dict.
     :return: str.
     """
-    if isinstance(item, str):
-        return ''
-    for key in item.keys():
-        if isinstance(item[key], list):
-            names_list = []
-            for element in item[key]:
-                names_list.append(fetch_pi_institution(element))
-            return ', '.join(n for n in set(names_list) if n)
-        if key == 'pref' and item[key] == 'Y':
-            return item['content']
-        return fetch_pi_institution(item[key])
+    if isinstance(item, dict):
+        for key in item.keys():
+            if key == 'pref' and item[key] == 'Y':
+                return item['content']
+            return fetch_pi_institution(item[key])
+    if isinstance(item, list):
+        names_list = []
+        for element in item:
+            names_list.append(fetch_pi_institution(element))
+        return ', '.join(n for n in set(names_list) if n)
     return ''
 
 

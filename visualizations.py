@@ -3,6 +3,7 @@ Visualize processed dicts or Excel files of data as Plotly express
 objects.
 """
 
+import textwrap
 import pandas as pd
 import plotly.express as px
 from plotly import offline
@@ -23,16 +24,7 @@ def word_wrap(x):
     :param x: str or int.
     :return: str.
     """
-    x = str(x)
-    max_line_length = 40
-    if len(x) > max_line_length:
-        num_of_lines = ((len(x) - 1) // max_line_length) + 1
-        for line in range(num_of_lines, 1, -1):
-            to_wrap = (line - 1) * max_line_length
-            while x[to_wrap].isalpha() and x[to_wrap - 1].isalpha():
-                to_wrap -= 1
-            x = x[:to_wrap] + '<br>' + x[to_wrap:]
-    return x
+    return '<br>'.join(textwrap.wrap(str(x), 40))
 
 
 def visualize_data(df):
@@ -46,7 +38,12 @@ def visualize_data(df):
     df['Grant Amount, USD'] = df['Grant Amount, USD'].replace(to_replace='', value=0)
     gby = df.groupby('Publication Year')['Grant Amount, USD'].sum()
 
-    fig = px.bar(data_frame=gby, title='Grant Funding by Year, USD')
+    fig = px.bar(
+        data_frame=gby,
+        y='Grant Amount, USD',
+        title='Grant Funding by Year, USD',
+        hover_data={'Grant Amount, USD': ':,.2f'}
+    )
     fig.update_traces(marker_color=color_palette[0])
     fig.update_layout({'plot_bgcolor': '#FFFFFF', 'paper_bgcolor': '#FFFFFF'},
                       font_family='Calibri',
@@ -83,6 +80,7 @@ def visualize_data(df):
         parents=[None for x in range(display_items_gbo)],
         color_discrete_sequence=color_palette,
         values='Grant Amount, USD',
+        hover_data={'Grant Amount, USD': ':,.2f'},
         title='Top Grant Receivers by funding volumes, USD'
     )
     fig.update_traces(
@@ -106,6 +104,7 @@ def visualize_data(df):
         path=['Funding Country', 'Funding Agency'],
         values='Grant Amount, USD',
         color_discrete_sequence=color_palette,
+        hover_data={'Grant Amount, USD': ':,.2f'},
         title='Top Grant Agencies by funding volumes, USD'
     )
     fig.update_traces(
@@ -126,7 +125,9 @@ def visualize_data(df):
     fig = px.bar(
         data_frame=agvby,
         y='Average Grant Volume',
-        hover_data=['Number of Grants', 'Total Funding Volume'],
+        hover_data={'Average Grant Volume': ':,.2f',
+                    'Number of Grants': True,
+                    'Total Funding Volume': ':,.2f'},
         title='Average Grant Volume by Year, USD'
     )
     fig.update_traces(marker_color=color_palette[0])
