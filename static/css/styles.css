@@ -134,6 +134,16 @@ input[type=file]::file-selector-button:hover {
     background-color: #F2F2F2;
 }
 
+.graph_button_switchable {
+    background-color: #FFFFFF;
+    color: #5E33BF;
+    border-width: 1px;
+}
+
+.graph_button_switchable:hover {
+    background-color: #F2F2F2;
+}
+
 .plotly-graph-div {
     height: 600px !important;
 }

@@ -47,12 +47,31 @@
             {% if plot %}
             <section>
                 <form class="graph" method="POST">
+                    {% if index==0 %}
                     <button class="graph_button" name="button" value="grant_funding_by_year">Grant Funding by Year</button>
+                    {% else %}
+                    <button class="graph_button_switchable" name="button" value="grant_funding_by_year">Grant Funding by Year</button>
+                    {% endif %}
+                    {% if index==1 %}
                     <button class="graph_button" name="button" value="top_grant_receivers">Top Grant Receivers</button>
+                    {% else %}
+                    <button class="graph_button_switchable" name="button" value="top_grant_receivers">Top Grant Receivers</button>
+                    {% endif %}
+                    {% if index==2 %}
                     <button class="graph_button" name="button" value="top_funders">Top Funding Agencies</button>
-                    <button class="graph_button" name="button" value="top_countries">Top Funding Countries</button>
+                    {% else %}
+                    <button class="graph_button_switchable" name="button" value="top_funders">Top Funding Agencies</button>
+                    {% endif %}
+                    {% if index==3 %}
                     <button class="graph_button" name="button" value="average_grant_volume_per_year">Average Grant Volume per Year</button>
+                    {% else %}
+                    <button class="graph_button_switchable" name="button" value="average_grant_volume_per_year">Average Grant Volume per Year</button>
+                    {% endif %}
+                    {% if index==4 %}
                     <button class="graph_button" name="button" value="top_grants_by_associated_wos_records">Top Grants by Associated WoS Records</button>
+                    {% else %}
+                    <button class="graph_button_switchable" name="button" value="top_grants_by_associated_wos_records">Top Grants by Associated WoS Records</button>
+                    {% endif %}
                 </form>
                 {{ plot|safe }}
             </section>
